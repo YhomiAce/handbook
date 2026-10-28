@@ -1,0 +1,51 @@
+---
+title: Engineering Handbook
+description: How our engineering team works, from your first day to your first incident.
+template: splash
+lastUpdated: false
+editUrl: false
+hero:
+  tagline: How we build, ship and run software. Written down, so nobody has to guess.
+  actions:
+    - text: Start your first week
+      link: /onboarding/first-week/
+      icon: right-arrow
+    - text: Handling an incident
+      link: /operations/incident-response/
+      icon: warning
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What's in here
+
+<CardGrid>
+  <Card title="Onboarding" icon="rocket">
+    Your first week, setting up a dev environment and the accounts you need.
+  </Card>
+  <Card title="Engineering practices" icon="pencil">
+    Code review, branching and commits, testing and API design.
+  </Card>
+  <Card title="Operations" icon="warning">
+    On-call, incidents, postmortems, deploying and rolling back.
+  </Card>
+  <Card title="Architecture & security" icon="puzzle">
+    How the system fits together, why it's built that way, and how we keep it safe.
+  </Card>
+</CardGrid>
+
+## Most visited
+
+<CardGrid>
+  <LinkCard title="Incident response runbook" href="/operations/incident-response/" description="Severity levels, roles and the first 15 minutes." />
+  <LinkCard title="Deployment checklist" href="/operations/deployment-checklist/" description="What to check before, during and after a release." />
+  <LinkCard title="Code review guide" href="/practices/code-review/" description="What reviewers look for and how to give useful feedback." />
+  <LinkCard title="API design guidelines" href="/practices/api-design/" description="REST conventions, errors, pagination and versioning." />
+</CardGrid>
+
+## How this handbook works
+
+This handbook is a living document. If something is wrong, out of date or missing, fix it: every page
+is a Markdown file in the repository, and changes go through the same
+[code review](/practices/code-review/) as everything else. Press <kbd>/</kbd> to search.

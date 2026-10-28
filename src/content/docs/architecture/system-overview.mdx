@@ -1,0 +1,105 @@
+---
+title: System overview
+description: The main components of the platform and how requests and data flow between them.
+sidebar:
+  order: 1
+---
+
+import Mermaid from '../../../components/Mermaid.astro';
+
+This page is the map. It shows the main components, what each is responsible for and how they talk to
+each other. Details live in each service's README; the reasoning behind the big choices lives in the
+[architecture decision records](/architecture/adr-process/).
+
+## Diagram
+
+<Mermaid
+  caption="Request and data flow between the main components."
+  code={`flowchart TB
+  user([Browser / mobile app])
+  partner([Partner integrations])
+
+  subgraph edge[Edge]
+    cdn[CDN + WAF]
+    lb[Load balancer]
+  end
+
+  subgraph apps[Application]
+    web[web<br/>Next.js frontend]
+    api[api<br/>REST API]
+    worker[worker<br/>background jobs]
+  end
+
+  subgraph data[Data]
+    pg[(Postgres<br/>primary + replica)]
+    redis[(Redis<br/>cache + rate limits)]
+    queue[[Job queue]]
+    s3[(Object storage)]
+  end
+
+  subgraph ext[Third parties]
+    pay[Payments provider]
+    mail[Email provider]
+  end
+
+  user --> cdn --> lb
+  partner --> lb
+  lb --> web
+  lb --> api
+  web --> api
+  api --> pg
+  api --> redis
+  api --> queue
+  api --> s3
+  queue --> worker
+  worker --> pg
+  worker --> mail
+  worker --> s3
+  api --> pay
+  pay -. webhooks .-> api`}
+/>
+
+## Components
+
+| Component | Responsibility | Tech | Owner |
+| --- | --- | --- | --- |
+| **web** | Server-rendered frontend, marketing pages and the logged-in app | Next.js, TypeScript | Product team |
+| **api** | The single REST API used by web, mobile and partners. Authentication, business logic, validation | Node.js, TypeScript | Product team |
+| **worker** | Asynchronous jobs: emails, PDF generation, webhooks out, scheduled tasks | Node.js, same codebase as api | Product team |
+| **Postgres** | System of record. One primary, one read replica for reporting | Managed Postgres 17 | Platform team |
+| **Redis** | Cache, sessions, rate limiting. Losing it is an inconvenience, not data loss | Managed Redis | Platform team |
+| **Job queue** | Durable queue between api and worker, with retries and a dead-letter queue | Postgres-backed queue ([ADR 0002](/architecture/adr/0002-postgres-backed-job-queue/)) | Platform team |
+| **Object storage** | Uploaded files, generated PDFs, exports | S3-compatible | Platform team |
+
+## Key flows
+
+**A user request.** The browser hits the CDN, which serves static assets from cache and forwards
+everything else to the load balancer. `web` renders pages and calls `api` server-side for data. `api`
+authenticates the session, checks permissions, reads and writes Postgres, and returns JSON (see the
+[API design guidelines](/practices/api-design/)).
+
+**Slow work.** Anything that takes more than ~200 ms or talks to a flaky third party (emails, PDFs,
+outgoing webhooks) is enqueued by `api` *in the same database transaction* as the change that caused
+it, and executed by `worker`. Jobs are idempotent and retried with exponential backoff.
+
+**Payments.** `api` creates payment intents with the provider synchronously. The final state arrives
+asynchronously through signed webhooks, which `api` verifies, stores and acknowledges immediately,
+handing processing to `worker`.
+
+## Environments
+
+| Environment | Purpose | Deploys | Data |
+| --- | --- | --- | --- |
+| Local | Development | — | Seed data in Docker |
+| Preview | One per pull request, for reviewing UI changes | Every push to a PR | Seed data |
+| Staging | Integration and end-to-end tests, demos | Every merge to `main` | Synthetic data, refreshed weekly |
+| Production | Customers | After staging passes, via canary | Real data |
+
+See the [deployment checklist](/operations/deployment-checklist/) for how a change moves through them.
+
+## Design principles
+
+- **Boring technology.** We choose well-understood tools and spend our innovation budget on the product.
+- **One database until it hurts.** Postgres does more than people expect: queues, search, JSON. See [ADR 0001](/architecture/adr/0001-modular-monolith/).
+- **Idempotency everywhere.** Retries are normal, so every job and every write endpoint must be safe to repeat.
+- **Observable by default.** Every service emits structured logs with a request ID, RED metrics (rate, errors, duration) and traces.

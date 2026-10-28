@@ -1,0 +1,44 @@
+---
+/**
+ * Renders a Mermaid diagram client-side. The source is shown as plain text
+ * until the script runs (and stays readable if JavaScript is disabled).
+ */
+interface Props {
+  /** Mermaid diagram source. */
+  code: string;
+  /** Caption shown under the diagram. */
+  caption?: string;
+}
+
+const { code, caption } = Astro.props;
+---
+
+<figure class="mermaid-figure not-content">
+  <pre class="mermaid" data-source={code}>{code}</pre>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<script>
+  import mermaid from 'mermaid';
+
+  const currentTheme = (): 'dark' | 'default' =>
+    document.documentElement.dataset['theme'] === 'dark' ? 'dark' : 'default';
+
+  async function render(): Promise<void> {
+    const nodes = document.querySelectorAll<HTMLElement>('pre.mermaid');
+    nodes.forEach((node) => {
+      node.removeAttribute('data-processed');
+      node.textContent = node.dataset['source'] ?? '';
+    });
+    mermaid.initialize({ startOnLoad: false, theme: currentTheme(), securityLevel: 'strict' });
+    await mermaid.run({ nodes: Array.from(nodes) });
+  }
+
+  void render();
+
+  // Re-render when the reader toggles dark/light mode.
+  new MutationObserver(() => void render()).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+</script>
